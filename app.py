@@ -19,7 +19,6 @@ except Exception:
 def send_email_notification(to_email, subject, body):
     """Sends an email notification using Gmail's SMTP server."""
     if not SENDER_EMAIL or not SENDER_PASSWORD:
-        # Skip sending if secrets are not configured yet
         return False
     try:
         msg = MIMEMultipart()
@@ -82,7 +81,7 @@ def init_db():
 
 def sync_excel_with_db():
     if not os.path.exists(EXCEL_FILE):
-        st.error(f"Error: {EXCEL_FILE} not found. Please create it first.")
+        st.error(f"Error: {EXCEL_FILE} not found. Please verify it is uploaded to your GitHub repository.")
         st.stop()
         
     df = pd.read_excel(EXCEL_FILE)
@@ -103,13 +102,13 @@ def sync_excel_with_db():
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 emp_id, row['Full_Name'], row['Email'], row['Monthly_Salary'], row['Department'],
-                row['Manager_Name'], row['Manager_Email'], row['Initial_Sick_Balance'], 
-                row['Initial_Annual_Balance'], row['Initial_Casual_Balance']
+                row['Manager_Name'], row['Manager_Email'], int(row['Initial_Sick_Balance']), 
+                int(row['Initial_Annual_Balance']), int(row['Initial_Casual_Balance'])
             ))
     conn.commit()
     conn.close()
 
-# Initialize
+# Force-initialize databases before Streamlit starts rendering
 init_db()
 sync_excel_with_db()
 
@@ -250,6 +249,10 @@ else:
         # History table
         st.write("---")
         st.subheader("🕒 My Request History")
+        
+        # Ensure database tables are strictly verified before calling pd.read_sql_query
+        init_db()
+        
         conn = sqlite3.connect(DB_FILE)
         history_df = pd.read_sql_query("SELECT Request_ID, Leave_Type, Duration, Status, Feedback FROM leave_requests WHERE Employee_ID = ?", conn, params=(user['Employee_ID'],))
         conn.close()
@@ -259,6 +262,7 @@ else:
     elif view_option == "Manager Dashboard":
         st.subheader("📥 Incoming Requests Pending Your Decision")
         
+        init_db()
         conn = sqlite3.connect(DB_FILE)
         # Fetch pending requests submitted by employees managed by this user
         cursor = conn.cursor()
